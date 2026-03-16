@@ -1,0 +1,28 @@
+# bundle.yaml — pyRevit pushbutton metadata
+# Docs: https://pyrevitlabs.notion.site/Bundle-Metadata
+
+# ── Button appearance ─────────────────────────────────────────────────────
+title:       Validate & Correct
+tooltip: |
+  Scans all FamilySymbol type names and ProjectInformation shared parameters
+  for COBie compliance issues (colon-format names, ALL-CAPS segments, missing
+  or empty AIR-required fields) and lets you apply corrections in one click.
+author:      COBie Compliance Tool
+
+# ── Minimum Revit version ─────────────────────────────────────────────────
+min_revit_ver: 2022
+max_revit_ver: 2025
+
+# ── Engine configuration ──────────────────────────────────────────────────
+engine:
+  # Use IronPython 3 / CPython 3 if available (pyRevit ≥ 4.8)
+  # Falls back to IronPython 2 on older installations.
+  type:     ironpython
+
+# ── Extra search paths added to sys.path at runtime ───────────────────────
+# (script.py also adds lib/ explicitly for robustness)
+syspaths:
+  - ../../../lib
+
+# ── Optional: link a custom icon (place icon.png next to this file) ────────
+# icon: icon.png
