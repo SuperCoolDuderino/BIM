@@ -23,6 +23,8 @@ SummaryResult is a dict:
 import sys
 import csv as _csv
 
+from cobie_params import guid_for
+
 try:
     from Autodesk.Revit.DB import (
         Transaction,
@@ -30,6 +32,7 @@ try:
         FamilySymbol,
         ElementId,
     )
+    from System import Guid as _Guid
     _REVIT_AVAILABLE = True
 except ImportError:
     _REVIT_AVAILABLE = False
@@ -88,9 +91,16 @@ def _get_symbol(doc, element_id_int):
 def _apply_project_info_correction(doc, issue):
     """
     Apply a single project-information correction.
+
+    Parameter lookup order:
+      1. GUID-based  (element.get_Parameter(System.Guid)) — most reliable;
+         GUID sourced from cobie_params.guid_for(param_name).
+      2. Name-based  (LookupParameter) — fallback if GUID lookup returns None.
+
     Returns True on success, raises on failure.
     """
-    param_name = issue['rule'].split(':', 1)[-1]   # e.g. 'SiteName'
+    # Rule string is 'MissingParam:COBie.Facility.SiteName' or 'EmptyParam:...'
+    param_name = issue['rule'].split(':', 1)[-1]
     new_value  = issue['corrected_to']
 
     # corrected_to for missing/empty params is a placeholder instruction;
@@ -102,11 +112,25 @@ def _apply_project_info_correction(doc, issue):
             )
         )
 
-    param = doc.ProjectInformation.LookupParameter(param_name)
+    proj  = doc.ProjectInformation
+    param = None
+
+    # 1. GUID lookup
+    guid_str = guid_for(param_name)
+    if guid_str:
+        try:
+            param = proj.get_Parameter(_Guid(guid_str))
+        except Exception:
+            param = None
+
+    # 2. Name fallback
+    if param is None:
+        param = proj.LookupParameter(param_name)
+
     if param is None:
         raise KeyError(
-            'Shared parameter "{}" not found on ProjectInformation.'.format(
-                param_name
+            'Shared parameter "{}" (guid={}) not found on ProjectInformation.'.format(
+                param_name, guid_str or 'unknown'
             )
         )
     if param.IsReadOnly:

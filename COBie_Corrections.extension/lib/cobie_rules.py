@@ -5,9 +5,9 @@ cobie_rules.py
 Rule engine for COBie compliance validation.
 
 Exposes:
-    validate_type_name(name)  -> list[Issue]
-    validate_project_info(doc) -> list[Issue]
-    suggest_correction(name)   -> str | None
+    validate_type_name(element_id_int, name, category_group) -> list[Issue]
+    validate_project_info(doc)                                -> list[Issue]
+    suggest_correction(name)                                  -> str | None
 
 Issue is a dict with keys:
     element_id   : int  (ElementId.IntegerValue, or None for project info)
@@ -15,9 +15,19 @@ Issue is a dict with keys:
     was          : str  (current value)
     corrected_to : str  (suggested value)
     rule         : str  (short rule label)
+
+Parameter lookup strategy
+-------------------------
+ProjectInformation shared parameters are looked up by GUID (via
+element.get_Parameter(System.Guid(guid_string))) rather than by display name.
+This is robust against localisations, renames, and duplicate-name collisions.
+GUIDs are sourced from cobie_params.py, which was transcribed verbatim from
+the project's COBie shared parameter file.
 """
 
 import re
+
+from cobie_params import FACILITY_REQUIRED, guid_for
 
 # ---------------------------------------------------------------------------
 # Generic regex rules (fire on every model)
@@ -40,23 +50,6 @@ TYPE_MAP = {
     'ElectricApplicance_AlarmPanel_Type04':                       'ElectricAppliance_AlarmPanel_Type04',
     'ElectricApplicance_Camera_Type01':                           'ElectricAppliance_Camera_Type01',
     'Tank_Vessel_Type02':                                         'Tank_Expansion_Type02',
-}
-
-# ---------------------------------------------------------------------------
-# AIR-specified ProjectInformation shared parameter validation
-# ---------------------------------------------------------------------------
-
-# Keys: shared parameter name as it appears in Revit
-# Values: tuple(allowed_values_list_or_None, description_for_error)
-#   None means "must be present and non-empty"
-PROJECT_INFO_RULES = {
-    'SiteName':           (None, 'Must be non-empty'),
-    'Category':           (None, 'Must be non-empty'),
-    'ProjectName':        (None, 'Must be non-empty'),
-    'Phase':              (None, 'Must be non-empty'),
-    'BuildingDescription':(None, 'Must be non-empty'),
-    'ProjectDescription': (None, 'Must be non-empty'),
-    'SiteDescription':    (None, 'Must be non-empty'),
 }
 
 # ---------------------------------------------------------------------------
@@ -88,18 +81,12 @@ def suggest_correction(name):
       2. COLON_FORMAT  -> no automatic rename; returns None (must be flagged)
       3. ALLCAPS_SEGMENT -> apply _to_pascal on matching segments
     """
-    # 1. Exact map lookup
     if name in TYPE_MAP:
         return TYPE_MAP[name]
-
-    # 2. Colon-format: flag only, no automatic suggestion
     if COLON_FORMAT.match(name):
         return None
-
-    # 3. All-caps segments
     if ALLCAPS_SEGMENT.search(name):
         return _fix_allcaps_segments(name)
-
     return None
 
 
@@ -149,20 +136,43 @@ def validate_project_info(doc):
     """
     Validate ProjectInformation shared parameters against AIR rules.
 
+    Parameters are looked up by GUID (sourced from cobie_params.py) so the
+    check is robust against display-name variations. FACILITY_REQUIRED lists
+    the seven AIR-mandatory parameters using their canonical shared-param names.
+
     Returns a list of Issue dicts (category='Facility').
     """
-    issues = []
-    proj = doc.ProjectInformation
+    # Revit API GUID import — only available inside pyRevit/Revit
+    try:
+        from System import Guid as _Guid
+        _guid_lookup_available = True
+    except ImportError:
+        _guid_lookup_available = False
 
-    for param_name, (allowed, description) in PROJECT_INFO_RULES.items():
-        param = proj.LookupParameter(param_name)
+    issues = []
+    proj   = doc.ProjectInformation
+
+    for param_name in FACILITY_REQUIRED:
+        param = None
+        guid_str = guid_for(param_name)
+
+        # Primary: GUID-based lookup (most reliable)
+        if _guid_lookup_available and guid_str:
+            try:
+                param = proj.get_Parameter(_Guid(guid_str))
+            except Exception:
+                param = None
+
+        # Fallback: name-based lookup (works if GUID lookup not available)
+        if param is None:
+            param = proj.LookupParameter(param_name)
 
         if param is None:
             issues.append({
                 'element_id':   None,
                 'category':     'Facility',
                 'was':          '<missing>',
-                'corrected_to': '<add parameter "{}">'.format(param_name),
+                'corrected_to': '<add shared parameter "{}">'.format(param_name),
                 'rule':         'MissingParam:{}'.format(param_name),
             })
             continue
