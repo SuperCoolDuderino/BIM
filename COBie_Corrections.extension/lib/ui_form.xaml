@@ -218,16 +218,14 @@
                             Grid.Column="2"
                             Content="Cancel"
                             Style="{StaticResource SecondaryButton}"
-                            Margin="0,0,8,0"
-                            Click="OnCancel"/>
+                            Margin="0,0,8,0"/>
 
                     <!-- Apply Corrections / Preview Changes -->
                     <Button x:Name="ApplyButton"
                             Grid.Column="3"
                             Content="Apply Corrections"
                             Style="{StaticResource PrimaryButton}"
-                            IsEnabled="False"
-                            Click="OnApply"/>
+                            IsEnabled="False"/>
 
                     <!-- Export CSV -->
                     <Button x:Name="ExportCsvButton"
@@ -235,8 +233,7 @@
                             Content="Export CSV"
                             Style="{StaticResource SecondaryButton}"
                             Margin="8,0,0,0"
-                            ToolTip="Export all validation results to CSV (full audit trail, ignores checkbox state)"
-                            Click="OnExportCsv"/>
+                            ToolTip="Export all validation results to CSV (full audit trail, ignores checkbox state)"/>
                 </Grid>
 
                 <!-- Undo reminder — hidden when Dry Run is active -->
