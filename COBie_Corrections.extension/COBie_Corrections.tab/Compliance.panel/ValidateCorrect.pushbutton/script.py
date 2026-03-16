@@ -84,6 +84,25 @@ def _make_thickness(*args):
     return Thickness(*args)
 
 
+def _is_checked(cb):
+    """IronPython-safe read of CheckBox.IsChecked.
+
+    WPF CheckBox.IsChecked is System.Nullable<bool>.  IronPython sometimes
+    presents it as a plain Python bool (when set from Python code) and
+    sometimes as a Nullable<bool> object (when toggled by the user).
+    This helper handles both transparently.
+    """
+    v = cb.IsChecked
+    if v is None:
+        return False
+    try:
+        # Nullable<bool> path
+        return v.GetValueOrDefault(False)
+    except AttributeError:
+        # Plain Python bool path
+        return bool(v)
+
+
 def _text(txt, foreground=None, bold=False, margin=None):
     tb = TextBlock()
     tb.Text = txt
@@ -320,7 +339,7 @@ def main():
             1
             for cbs in checkbox_store.values()
             for cb in cbs
-            if cb.IsEnabled and cb.IsChecked.GetValueOrDefault(False)
+            if cb.IsEnabled and _is_checked(cb)
         )
         apply_btn.IsEnabled = checked > 0
         sel_feedback.Text   = '{} correction{} selected'.format(
@@ -340,7 +359,7 @@ def main():
 
     # ── Dry Run toggle — updates button label and undo reminder visibility ───
     def _on_dry_run_toggled(sender=None, e=None):
-        is_dry = dry_run_cb.IsChecked.GetValueOrDefault(False)
+        is_dry = _is_checked(dry_run_cb)
         apply_btn.Content = 'Preview Changes' if is_dry else 'Apply Corrections'
         undo_reminder.Visibility = Visibility.Collapsed if is_dry else Visibility.Visible
 
@@ -380,10 +399,10 @@ def main():
             cb.Tag
             for cbs in checkbox_store.values()
             for cb in cbs
-            if cb.IsEnabled and cb.IsChecked.GetValueOrDefault(False)
+            if cb.IsEnabled and _is_checked(cb)
         ]
         result_holder['confirmed'] = confirmed
-        result_holder['dry_run']   = dry_run_cb.IsChecked.GetValueOrDefault(False)
+        result_holder['dry_run']   = _is_checked(dry_run_cb)
         window.DialogResult = True
         window.Close()
 
