@@ -315,7 +315,7 @@ def main():
             1
             for cbs in checkbox_store.values()
             for cb in cbs
-            if cb.IsEnabled and cb.IsChecked
+            if cb.IsEnabled and cb.IsChecked == True
         )
         apply_btn.IsEnabled = checked > 0
         sel_feedback.Text   = '{} correction{} selected'.format(
@@ -335,7 +335,7 @@ def main():
 
     # ── Dry Run toggle — updates button label and undo reminder visibility ───
     def _on_dry_run_toggled(sender=None, e=None):
-        is_dry = bool(dry_run_cb.IsChecked)
+        is_dry = (dry_run_cb.IsChecked == True)
         apply_btn.Content = 'Preview Changes' if is_dry else 'Apply Corrections'
         undo_reminder.Visibility = Visibility.Collapsed if is_dry else Visibility.Visible
 
@@ -375,10 +375,10 @@ def main():
             cb.Tag
             for cbs in checkbox_store.values()
             for cb in cbs
-            if cb.IsEnabled and cb.IsChecked
+            if cb.IsEnabled and cb.IsChecked == True
         ]
         result_holder['confirmed'] = confirmed
-        result_holder['dry_run']   = bool(dry_run_cb.IsChecked)
+        result_holder['dry_run']   = (dry_run_cb.IsChecked == True)
         window.DialogResult = True
         window.Close()
 
