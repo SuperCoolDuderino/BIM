@@ -43,11 +43,10 @@ clr.AddReference('PresentationFramework')
 clr.AddReference('PresentationCore')
 clr.AddReference('WindowsBase')
 
-from System.Windows         import Window, Thickness, HorizontalAlignment, VerticalAlignment, Visibility
+from System.Windows         import Window, Thickness, HorizontalAlignment, VerticalAlignment, Visibility, GridLength, GridUnitType
 from System.Windows.Controls import (
     ScrollViewer, StackPanel, Grid, ColumnDefinition, RowDefinition,
     CheckBox, TextBlock, Button, Border, ItemsControl, Label,
-    GridLength, GridUnitType,
 )
 from System.Windows.Media   import SolidColorBrush, Color
 from System.Windows.Markup  import XamlReader
