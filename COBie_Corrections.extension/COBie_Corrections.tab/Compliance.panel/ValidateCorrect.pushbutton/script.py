@@ -43,14 +43,16 @@ clr.AddReference('PresentationFramework')
 clr.AddReference('PresentationCore')
 clr.AddReference('WindowsBase')
 
-from System.Windows         import Window, Thickness, HorizontalAlignment, VerticalAlignment, Visibility, GridLength, GridUnitType
-from System.Windows.Controls import (
+from System.Windows             import Window, Thickness, HorizontalAlignment, VerticalAlignment, Visibility, GridLength, GridUnitType
+from System.Windows             import FontWeights, TextTrimming, CornerRadius
+from System.Windows.Controls    import (
     ScrollViewer, StackPanel, Grid, ColumnDefinition, RowDefinition,
     CheckBox, TextBlock, Button, Border, ItemsControl, Label,
 )
-from System.Windows.Media   import SolidColorBrush, Color
-from System.Windows.Markup  import XamlReader
-from System.IO              import File
+from System.Windows.Input       import Cursors
+from System.Windows.Media       import SolidColorBrush, Color
+from System.Windows.Markup      import XamlReader
+from System.IO                  import File
 
 # ── Colours ──────────────────────────────────────────────────────────────────
 _C_HEADER_BG  = SolidColorBrush(Color.FromRgb(226, 234, 243))   # #E2EAF3
@@ -88,11 +90,11 @@ def _text(txt, foreground=None, bold=False, margin=None):
     if foreground:
         tb.Foreground = foreground
     if bold:
-        tb.FontWeight = System.Windows.FontWeights.SemiBold
+        tb.FontWeight = FontWeights.SemiBold
     if margin:
         tb.Margin = margin
     tb.VerticalAlignment = VerticalAlignment.Center
-    tb.TextTrimming = System.Windows.TextTrimming.CharacterEllipsis
+    tb.TextTrimming = TextTrimming.CharacterEllipsis
     return tb
 
 
@@ -122,7 +124,7 @@ def _build_group_panel(group_name, issues, checkbox_store, on_checked_changed):
     outer.Background  = _C_WHITE
     outer.BorderBrush = SolidColorBrush(Color.FromRgb(208, 208, 208))
     outer.BorderThickness = _make_thickness(1)
-    outer.CornerRadius = System.Windows.CornerRadius(4)
+    outer.CornerRadius = CornerRadius(4)
 
     sp = StackPanel()
     outer.Child = sp
@@ -130,7 +132,7 @@ def _build_group_panel(group_name, issues, checkbox_store, on_checked_changed):
     # ── Group header ────────────────────────────────────────────────────────
     hdr_border = Border()
     hdr_border.Background    = _C_HEADER_BG
-    hdr_border.CornerRadius  = System.Windows.CornerRadius(4, 4, 0, 0)
+    hdr_border.CornerRadius  = CornerRadius(4, 4, 0, 0)
     hdr_border.Padding       = _make_thickness(10, 6, 10, 6)
 
     hdr_grid = Grid()
@@ -140,7 +142,7 @@ def _build_group_panel(group_name, issues, checkbox_store, on_checked_changed):
 
     lbl = TextBlock()
     lbl.Text       = group_name
-    lbl.FontWeight = System.Windows.FontWeights.SemiBold
+    lbl.FontWeight = FontWeights.SemiBold
     lbl.FontSize   = 14
     lbl.Foreground = SolidColorBrush(Color.FromRgb(26, 58, 92))
     lbl.VerticalAlignment = VerticalAlignment.Center
@@ -151,7 +153,7 @@ def _build_group_panel(group_name, issues, checkbox_store, on_checked_changed):
         btn.Content   = txt
         btn.Padding   = _make_thickness(8, 4, 8, 4)
         btn.Margin    = _make_thickness(0, 0, 6 if col == 1 else 0, 0)
-        btn.Cursor    = System.Windows.Input.Cursors.Hand
+        btn.Cursor    = Cursors.Hand
         btn.FontSize  = 11
         btn.Click    += click_fn
         Grid.SetColumn(btn, col)
@@ -189,7 +191,7 @@ def _build_group_panel(group_name, issues, checkbox_store, on_checked_changed):
     for idx, txt in enumerate(['', 'Was', 'Corrected To', 'Rule']):
         tb = TextBlock()
         tb.Text       = txt
-        tb.FontWeight = System.Windows.FontWeights.Bold
+        tb.FontWeight = FontWeights.Bold
         tb.Foreground = _C_MUTED_FG
         tb.Margin     = _make_thickness(4, 0, 4, 0)
         Grid.SetColumn(tb, idx)
