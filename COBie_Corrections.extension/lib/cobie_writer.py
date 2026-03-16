@@ -21,6 +21,7 @@ SummaryResult is a dict:
 """
 
 import sys
+import io as _io
 import csv as _csv
 
 from cobie_params import guid_for
@@ -134,7 +135,7 @@ def _apply_project_info_correction(doc, issue):
             )
         )
     if param.IsReadOnly:
-        raise PermissionError(
+        raise IOError(
             'Parameter "{}" is read-only.'.format(param_name)
         )
 
@@ -313,7 +314,7 @@ def export_csv(issues, filepath):
     str — the filepath written
     """
     fieldnames = ['Category', 'FamilyName', 'ElementID', 'Was', 'CorrectedTo', 'Rule']
-    with open(filepath, 'w', newline='') as fh:
+    with _io.open(filepath, 'w', newline='', encoding='utf-8') as fh:
         writer = _csv.DictWriter(fh, fieldnames=fieldnames)
         writer.writeheader()
         for issue in issues:
