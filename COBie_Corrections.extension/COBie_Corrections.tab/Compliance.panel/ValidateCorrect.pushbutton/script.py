@@ -165,11 +165,15 @@ def _build_group_panel(group_name, issues, checkbox_store, on_checked_changed):
 
     def on_select_all(s, e):
         for cb in group_cbs:
-            cb.IsChecked = True
+            if cb.IsEnabled:
+                cb.IsChecked = True
+        on_checked_changed()
 
     def on_deselect_all(s, e):
         for cb in group_cbs:
-            cb.IsChecked = False
+            if cb.IsEnabled:
+                cb.IsChecked = False
+        on_checked_changed()
 
     btn_sel   = _make_small_btn('Select All',   1, on_select_all)
     btn_desel = _make_small_btn('Deselect All', 2, on_deselect_all)
@@ -226,6 +230,7 @@ def _build_group_panel(group_name, issues, checkbox_store, on_checked_changed):
         cb.Tag       = issue
         cb.Checked   += on_checked_changed
         cb.Unchecked += on_checked_changed
+        cb.Click     += on_checked_changed   # belt-and-suspenders for IronPython
         group_cbs.append(cb)
         Grid.SetColumn(cb, 0)
 
@@ -315,7 +320,7 @@ def main():
             1
             for cbs in checkbox_store.values()
             for cb in cbs
-            if cb.IsEnabled and cb.IsChecked == True
+            if cb.IsEnabled and cb.IsChecked.GetValueOrDefault(False)
         )
         apply_btn.IsEnabled = checked > 0
         sel_feedback.Text   = '{} correction{} selected'.format(
@@ -335,7 +340,7 @@ def main():
 
     # ── Dry Run toggle — updates button label and undo reminder visibility ───
     def _on_dry_run_toggled(sender=None, e=None):
-        is_dry = (dry_run_cb.IsChecked == True)
+        is_dry = dry_run_cb.IsChecked.GetValueOrDefault(False)
         apply_btn.Content = 'Preview Changes' if is_dry else 'Apply Corrections'
         undo_reminder.Visibility = Visibility.Collapsed if is_dry else Visibility.Visible
 
@@ -375,10 +380,10 @@ def main():
             cb.Tag
             for cbs in checkbox_store.values()
             for cb in cbs
-            if cb.IsEnabled and cb.IsChecked == True
+            if cb.IsEnabled and cb.IsChecked.GetValueOrDefault(False)
         ]
         result_holder['confirmed'] = confirmed
-        result_holder['dry_run']   = (dry_run_cb.IsChecked == True)
+        result_holder['dry_run']   = dry_run_cb.IsChecked.GetValueOrDefault(False)
         window.DialogResult = True
         window.Close()
 
