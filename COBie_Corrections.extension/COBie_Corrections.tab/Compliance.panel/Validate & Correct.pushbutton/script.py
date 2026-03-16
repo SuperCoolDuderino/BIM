@@ -9,8 +9,15 @@ Workflow
 1. Collect all FamilySymbol elements + ProjectInformation from the active doc.
 2. Validate them against COBie rules (cobie_rules.py via cobie_collector.py).
 3. Display results in a WPF form grouped by COBie category with checkboxes.
-4. Write confirmed corrections in a single named transaction (cobie_writer.py).
-5. Show a summary dialog.
+4. Write confirmed corrections in a single named transaction (cobie_writer.py),
+   OR simulate without writing when Dry Run is active.
+5. Show a summary dialog (labelled accordingly for dry-run vs write mode).
+
+Toolbar extras
+--------------
+- Dry Run checkbox  — simulate corrections; logs to pyRevit output panel
+- Export CSV button — dump all collected issues to a CSV for offline review
+- Undo reminder     — visible in write mode; hidden in dry-run mode
 """
 
 import os
@@ -29,14 +36,14 @@ if _LIB_DIR not in sys.path:
     sys.path.insert(0, _LIB_DIR)
 
 from cobie_collector import collect_issues
-from cobie_writer    import apply_corrections
+from cobie_writer    import apply_corrections, export_csv
 
 # ── WPF / .NET ───────────────────────────────────────────────────────────────
 clr.AddReference('PresentationFramework')
 clr.AddReference('PresentationCore')
 clr.AddReference('WindowsBase')
 
-from System.Windows         import Window, Thickness, HorizontalAlignment, VerticalAlignment
+from System.Windows         import Window, Thickness, HorizontalAlignment, VerticalAlignment, Visibility
 from System.Windows.Controls import (
     ScrollViewer, StackPanel, Grid, ColumnDefinition, RowDefinition,
     CheckBox, TextBlock, Button, Border, ItemsControl, Label,
@@ -291,6 +298,9 @@ def main():
     cancel_btn        = window.FindName('CancelButton')
     issue_count_label = window.FindName('IssueCountLabel')
     sel_feedback      = window.FindName('SelectionFeedback')
+    dry_run_cb        = window.FindName('DryRunCheckbox')
+    export_btn        = window.FindName('ExportCsvButton')
+    undo_reminder     = window.FindName('UndoReminder')
 
     issue_count_label.Text = '({} issue{} found)'.format(
         len(issues), 's' if len(issues) != 1 else ''
@@ -306,8 +316,8 @@ def main():
             for cb in cbs
             if cb.IsEnabled and cb.IsChecked
         )
-        apply_btn.IsEnabled   = checked > 0
-        sel_feedback.Text     = '{} correction{} selected'.format(
+        apply_btn.IsEnabled = checked > 0
+        sel_feedback.Text   = '{} correction{} selected'.format(
             checked, 's' if checked != 1 else ''
         )
 
@@ -322,8 +332,42 @@ def main():
 
     _update_apply_btn()
 
-    # ── Event handlers ───────────────────────────────────────────────────────
-    result_holder = {'confirmed': None}
+    # ── Dry Run toggle — updates button label and undo reminder visibility ───
+    def _on_dry_run_toggled(sender=None, e=None):
+        is_dry = bool(dry_run_cb.IsChecked)
+        apply_btn.Content = 'Preview Changes' if is_dry else 'Apply Corrections'
+        undo_reminder.Visibility = Visibility.Collapsed if is_dry else Visibility.Visible
+
+    dry_run_cb.Checked   += _on_dry_run_toggled
+    dry_run_cb.Unchecked += _on_dry_run_toggled
+
+    # ── Export CSV — available at any time while the form is open ────────────
+    def on_export_csv(sender, e):
+        save_path = forms.save_file(
+            file_ext='csv',
+            default_name='COBie_Validation_Results.csv',
+            title='Export COBie Validation Results'
+        )
+        if not save_path:
+            return   # user cancelled
+        try:
+            export_csv(issues, save_path)
+            forms.alert(
+                'Exported {} issue{} to:\n{}'.format(
+                    len(issues), 's' if len(issues) != 1 else '', save_path
+                ),
+                title='COBie — Export Complete'
+            )
+        except Exception as exc:
+            forms.alert(
+                'Export failed:\n{}'.format(exc),
+                title='COBie Error', warn_icon=True
+            )
+
+    export_btn.Click += on_export_csv
+
+    # ── Apply / Preview ──────────────────────────────────────────────────────
+    result_holder = {'confirmed': None, 'dry_run': False}
 
     def on_apply(sender, e):
         confirmed = [
@@ -333,6 +377,7 @@ def main():
             if cb.IsEnabled and cb.IsChecked
         ]
         result_holder['confirmed'] = confirmed
+        result_holder['dry_run']   = bool(dry_run_cb.IsChecked)
         window.DialogResult = True
         window.Close()
 
@@ -346,13 +391,15 @@ def main():
     # ── Show ─────────────────────────────────────────────────────────────────
     window.ShowDialog()
 
-    confirmed = result_holder['confirmed']
+    confirmed  = result_holder['confirmed']
+    is_dry_run = result_holder['dry_run']
+
     if not confirmed:
         return   # user cancelled or nothing checked
 
-    # ── Write ────────────────────────────────────────────────────────────────
+    # ── Write / Simulate ─────────────────────────────────────────────────────
     try:
-        summary = apply_corrections(doc, confirmed)
+        summary = apply_corrections(doc, confirmed, dry_run=is_dry_run)
     except Exception as exc:
         forms.alert(
             'Corrections failed (transaction rolled back):\n{}'.format(exc),
@@ -361,17 +408,26 @@ def main():
         return
 
     # ── Summary ──────────────────────────────────────────────────────────────
+    if is_dry_run:
+        title  = 'COBie — Dry Run Preview'
+        header = '[DRY RUN — no changes written to the model]'
+        applied_label = '  Would apply : {}'.format(summary['applied'])
+    else:
+        title  = 'COBie — Summary'
+        header = 'COBie Corrections complete.'
+        applied_label = '  Applied : {}'.format(summary['applied'])
+
     lines = [
-        'COBie Corrections complete.',
+        header,
         '',
-        '  Applied : {}'.format(summary['applied']),
-        '  Skipped : {}'.format(summary['skipped']),
-        '  Failed  : {}'.format(len(summary['failed'])),
+        applied_label,
+        '  Skipped  : {}'.format(summary['skipped']),
+        '  Failed   : {}'.format(len(summary['failed'])),
     ]
     if summary['failed']:
-        lines += ['', 'Details:'] + ['  • ' + f for f in summary['failed']]
+        lines += ['', 'Details:'] + ['  \u2022 ' + f for f in summary['failed']]
 
-    forms.alert('\n'.join(lines), title='COBie — Summary')
+    forms.alert('\n'.join(lines), title=title)
 
 
 # ── pyRevit calls __revit__ implicitly; just run main() ─────────────────────

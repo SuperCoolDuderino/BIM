@@ -185,37 +185,69 @@
                 BorderBrush="#C8C8C8" BorderThickness="0,1,0,0"
                 Padding="0,10,0,0"
                 Margin="0,10,0,0">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
+            <StackPanel>
 
-                <!-- selected count feedback -->
-                <TextBlock x:Name="SelectionFeedback"
-                           Grid.Column="0"
-                           Text="0 corrections selected"
-                           Foreground="#555"
-                           VerticalAlignment="Center"/>
+                <!-- Button row -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>  <!-- Col 0: DryRunCheckbox -->
+                        <ColumnDefinition Width="*"/>     <!-- Col 1: SelectionFeedback -->
+                        <ColumnDefinition Width="Auto"/>  <!-- Col 2: CancelButton -->
+                        <ColumnDefinition Width="Auto"/>  <!-- Col 3: ApplyButton -->
+                        <ColumnDefinition Width="Auto"/>  <!-- Col 4: ExportCsvButton -->
+                    </Grid.ColumnDefinitions>
 
-                <!-- Cancel -->
-                <Button x:Name="CancelButton"
-                        Grid.Column="1"
-                        Content="Cancel"
-                        Style="{StaticResource SecondaryButton}"
-                        Margin="0,0,8,0"
-                        Click="OnCancel"/>
+                    <!-- Dry Run toggle -->
+                    <CheckBox x:Name="DryRunCheckbox"
+                              Grid.Column="0"
+                              Content="Dry Run (preview only)"
+                              IsChecked="False"
+                              VerticalAlignment="Center"
+                              Margin="0,0,16,0"
+                              ToolTip="Simulate corrections and log planned changes without writing to the model"/>
 
-                <!-- Apply Corrections -->
-                <Button x:Name="ApplyButton"
-                        Grid.Column="2"
-                        Content="Apply Corrections"
-                        Style="{StaticResource PrimaryButton}"
-                        IsEnabled="False"
-                        Click="OnApply"/>
-            </Grid>
+                    <!-- selected count feedback -->
+                    <TextBlock x:Name="SelectionFeedback"
+                               Grid.Column="1"
+                               Text="0 corrections selected"
+                               Foreground="#555"
+                               VerticalAlignment="Center"/>
+
+                    <!-- Cancel -->
+                    <Button x:Name="CancelButton"
+                            Grid.Column="2"
+                            Content="Cancel"
+                            Style="{StaticResource SecondaryButton}"
+                            Margin="0,0,8,0"
+                            Click="OnCancel"/>
+
+                    <!-- Apply Corrections / Preview Changes -->
+                    <Button x:Name="ApplyButton"
+                            Grid.Column="3"
+                            Content="Apply Corrections"
+                            Style="{StaticResource PrimaryButton}"
+                            IsEnabled="False"
+                            Click="OnApply"/>
+
+                    <!-- Export CSV -->
+                    <Button x:Name="ExportCsvButton"
+                            Grid.Column="4"
+                            Content="Export CSV"
+                            Style="{StaticResource SecondaryButton}"
+                            Margin="8,0,0,0"
+                            ToolTip="Export all validation results to CSV (full audit trail, ignores checkbox state)"
+                            Click="OnExportCsv"/>
+                </Grid>
+
+                <!-- Undo reminder — hidden when Dry Run is active -->
+                <TextBlock x:Name="UndoReminder"
+                           Text="&#x26A0;  All corrections are written in a single named transaction and are fully undoable via Ctrl+Z — undo before saving to discard."
+                           FontSize="11"
+                           Foreground="#7A5200"
+                           Margin="0,7,0,0"
+                           TextWrapping="Wrap"/>
+
+            </StackPanel>
         </Border>
     </Grid>
 </Window>

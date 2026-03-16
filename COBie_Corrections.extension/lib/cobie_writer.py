@@ -6,19 +6,22 @@ Writes confirmed COBie corrections back to the Revit document.
 
 Public API
 ----------
-apply_corrections(doc, confirmed_issues) -> SummaryResult
+apply_corrections(doc, confirmed_issues, dry_run=False) -> SummaryResult
+export_csv(issues, filepath) -> str
 
 confirmed_issues  : list of Issue dicts (same shape as cobie_collector output)
                     Only issues whose 'corrected_to' is a non-empty string and
                     that have been checked by the user are passed in.
 
 SummaryResult is a dict:
-    applied : int
-    skipped : int
-    failed  : list[str]   (human-readable failure messages)
+    applied  : int
+    skipped  : int
+    failed   : list[str]   (human-readable failure messages)
+    dry_run  : bool        (True when no writes were performed)
 """
 
 import sys
+import csv as _csv
 
 try:
     from Autodesk.Revit.DB import (
@@ -32,6 +35,15 @@ except ImportError:
     _REVIT_AVAILABLE = False
 
 TRANSACTION_NAME = 'COBie Compliance Corrections'
+
+
+# ---------------------------------------------------------------------------
+# Dry-run logger
+# ---------------------------------------------------------------------------
+
+def _log_dry(msg):
+    """Write a dry-run log line to stdout (pyRevit output panel picks this up)."""
+    sys.stdout.write(msg + '\n')
 
 
 # ---------------------------------------------------------------------------
@@ -110,18 +122,24 @@ def _apply_project_info_correction(doc, issue):
 # Main writer
 # ---------------------------------------------------------------------------
 
-def apply_corrections(doc, confirmed_issues):
+def apply_corrections(doc, confirmed_issues, dry_run=False):
     """
     Write all confirmed corrections inside a single named transaction.
+
+    When dry_run=True, all validation logic (collision detection, external-change
+    guards, element lookups) runs normally but no writes are made to the model.
+    Each planned change is logged to stdout with a [DRY RUN] prefix so it
+    appears in pyRevit's output panel.
 
     Parameters
     ----------
     doc               : Autodesk.Revit.DB.Document
     confirmed_issues  : list[Issue]  — only checked, non-empty corrected_to items
+    dry_run           : bool         — when True, simulate only; no writes
 
     Returns
     -------
-    dict with keys: applied (int), skipped (int), failed (list[str])
+    dict with keys: applied (int), skipped (int), failed (list[str]), dry_run (bool)
     """
     if not _REVIT_AVAILABLE:
         raise EnvironmentError(
@@ -147,14 +165,23 @@ def apply_corrections(doc, confirmed_issues):
             actionable.append(issue)
 
     if not actionable:
-        return {'applied': 0, 'skipped': skipped, 'failed': failed}
+        return {'applied': 0, 'skipped': skipped, 'failed': failed, 'dry_run': dry_run}
 
     # Snapshot existing names for collision detection (pre-transaction)
     existing_names = _existing_type_names(doc)
 
-    t = Transaction(doc, TRANSACTION_NAME)
+    if dry_run:
+        _log_dry('=== COBie Dry Run — {} planned correction(s) ==='.format(
+            len(actionable)))
+
+    # Open transaction only in write mode
+    t = None
+    if not dry_run:
+        t = Transaction(doc, TRANSACTION_NAME)
+
     try:
-        t.Start()
+        if not dry_run:
+            t.Start()
 
         for issue in actionable:
             was          = issue.get('was', '')
@@ -165,12 +192,19 @@ def apply_corrections(doc, confirmed_issues):
             try:
                 # ---- ProjectInformation issues ----
                 if elem_id is None:
-                    _apply_project_info_correction(doc, issue)
+                    if dry_run:
+                        param_name = rule.split(':', 1)[-1]
+                        _log_dry(
+                            '[DRY RUN] Would set ProjectInformation param '
+                            '"{}" → "{}"'.format(param_name, corrected_to)
+                        )
+                    else:
+                        _apply_project_info_correction(doc, issue)
                     applied += 1
                     continue
 
                 # ---- FamilySymbol rename ----
-                # Collision detection
+                # Collision detection (runs in both modes)
                 if corrected_to in existing_names and corrected_to != was:
                     raise ValueError(
                         'Target name "{}" already exists in the model.'.format(
@@ -191,8 +225,15 @@ def apply_corrections(doc, confirmed_issues):
                     )
                     continue
 
-                sym.Name = corrected_to
-                # Update collision set so subsequent renames in same tx are safe
+                if dry_run:
+                    _log_dry(
+                        '[DRY RUN] Would rename (id={}, rule={}): '
+                        '"{}" → "{}"'.format(elem_id, rule, was, corrected_to)
+                    )
+                else:
+                    sym.Name = corrected_to
+
+                # Update collision set so subsequent checks in the same loop are safe
                 existing_names.discard(was)
                 existing_names.add(corrected_to)
                 applied += 1
@@ -204,18 +245,60 @@ def apply_corrections(doc, confirmed_issues):
                     )
                 )
 
-        t.Commit()
+        if not dry_run:
+            t.Commit()
 
     except Exception as tx_exc:
-        # Roll back the entire transaction on unexpected error
-        if t.HasStarted() and not t.HasEnded():
+        # Roll back the transaction on unexpected error (write mode only)
+        if t is not None and t.HasStarted() and not t.HasEnded():
             t.RollBack()
         raise RuntimeError(
             'Transaction "{}" rolled back: {}'.format(TRANSACTION_NAME, tx_exc)
         )
 
+    if dry_run:
+        _log_dry('=== Dry Run complete: {} would apply, {} skipped, {} failed ==='.format(
+            applied, skipped, len(failed)))
+
     return {
         'applied': applied,
         'skipped': skipped,
         'failed':  failed,
+        'dry_run': dry_run,
     }
+
+
+# ---------------------------------------------------------------------------
+# CSV export
+# ---------------------------------------------------------------------------
+
+def export_csv(issues, filepath):
+    """
+    Write all collected Issue dicts to a CSV file (full audit trail).
+
+    Exports every issue regardless of checkbox state, giving a complete
+    picture of everything the validator found.
+
+    Parameters
+    ----------
+    issues   : list[Issue]  — raw list from collect_issues()
+    filepath : str          — absolute path to write (overwritten if exists)
+
+    Returns
+    -------
+    str — the filepath written
+    """
+    fieldnames = ['Category', 'FamilyName', 'ElementID', 'Was', 'CorrectedTo', 'Rule']
+    with open(filepath, 'w', newline='') as fh:
+        writer = _csv.DictWriter(fh, fieldnames=fieldnames)
+        writer.writeheader()
+        for issue in issues:
+            writer.writerow({
+                'Category':    issue.get('category', ''),
+                'FamilyName':  issue.get('family_name', ''),
+                'ElementID':   issue.get('element_id', ''),
+                'Was':         issue.get('was', ''),
+                'CorrectedTo': issue.get('corrected_to', ''),
+                'Rule':        issue.get('rule', ''),
+            })
+    return filepath
